@@ -257,57 +257,103 @@ function displayResults(results, recommendations) {
 }
 
 function displayOptions(groupOptions) {
-  optionsSection.style.display = 'block';
-  optionsTableBody.innerHTML = '';
+  try {
+    optionsSection.style.display = 'block';
+    optionsTableBody.innerHTML = '';
 
-  window.currentGroupOptions = groupOptions;
+    window.currentGroupOptions = groupOptions;
 
-  for (let i = 0; i < groupOptions.length; i++) {
-    const group = groupOptions[i];
-    const preferred = group.preferred;
-    
-    const row = document.createElement('tr');
-    row.innerHTML = `
-      <td>${group.centre}</td>
-      <td>${group.tradeOrMerged}</td>
-      <td>${group.totalCandidates}</td>
-      <td>${group.totalCandidateDays}</td>
-      <td>${group.options.length > 0 ? group.options.map((opt, idx) => 
-        `<button class="option-btn ${opt === preferred ? 'preferred' : ''}" 
-                onclick="selectOption(${i}, ${idx})"
-                title="${opt === preferred ? 'Recommended: fits within available period' : (opt.fits ? 'Fits within period' : 'Exceeds available period')}">
-          Option ${idx + 1}<br>
-          <strong>${opt.assessors}</strong> assessor(s)<br>
-          <strong>${opt.days}</strong> day(s)<br>
-          ${opt.fits ? 'Fits' : 'Exceeds'}
-        </button>`
-      ).join(' ') : 'N/A'}</td>
-      <td>${preferred.fits ? 'Yes' : 'No'}</td>
-    `;
-    optionsTableBody.appendChild(row);
+    if (!groupOptions || groupOptions.length === 0) {
+      optionsTableBody.innerHTML = '<tr><td colspan="6">No options available. Please check your data and dates.</td></tr>';
+      return;
+    }
+
+    const MAX_DISPLAY = 50;
+    const displayOptions = groupOptions.slice(0, MAX_DISPLAY);
+    const hasMore = groupOptions.length > MAX_DISPLAY;
+
+    for (let i = 0; i < displayOptions.length; i++) {
+      const group = displayOptions[i];
+      
+      if (!group || !group.options) {
+        console.error('Invalid group data at index', i, group);
+        continue;
+      }
+      
+      const preferred = group.preferred;
+      
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td>${group.centre || 'N/A'}</td>
+        <td>${group.tradeOrMerged || 'N/A'}</td>
+        <td>${group.totalCandidates || 0}</td>
+        <td>${group.totalCandidateDays || 0}</td>
+        <td>${Array.isArray(group.options) && group.options.length > 0 ? group.options.map((opt, idx) => {
+          if (!opt) {
+            console.error('Undefined option at group', i, 'index', idx);
+            return 'Error';
+          }
+          return `<button class="option-btn ${opt === preferred ? 'preferred' : ''}" 
+                  onclick="selectOption(${i}, ${idx})"
+                  title="${opt === preferred ? 'Recommended: fits within available period' : (opt.fits ? 'Fits within period' : 'Exceeds available period')}">
+            Option ${idx + 1}<br>
+            <strong>${opt.assessors || 0}</strong> assessor(s)<br>
+            <strong>${opt.days || 0}</strong> day(s)<br>
+            ${opt.fits ? 'Fits' : 'Exceeds'}
+          </button>`;
+        }).join(' ') : 'N/A'}</td>
+        <td>${preferred && preferred.fits ? 'Yes' : 'No'}</td>
+      `;
+      optionsTableBody.appendChild(row);
+    }
+
+    if (hasMore) {
+      const moreRow = document.createElement('tr');
+      moreRow.innerHTML = `
+        <td colspan="6" class="warning">
+          Showing ${MAX_DISPLAY} of ${groupOptions.length} groups. 
+          Please select specific trades to see fewer results, or select options above.
+        </td>
+      `;
+      optionsTableBody.appendChild(moreRow);
+    }
+  } catch (error) {
+    console.error('Error displaying options:', error);
+    console.error('Group options data sample:', groupOptions ? groupOptions.slice(0, 2) : 'null');
+    optionsTableBody.innerHTML = `<tr><td colspan="6" class="error">Error displaying options: ${error.message}. Try selecting fewer trades.</td></tr>`;
   }
 }
 
 function selectOption(groupIndex, optionIndex) {
-  const group = window.currentGroupOptions[groupIndex];
-  const option = group.options[optionIndex];
-  
-  const startDate = new Date();
-  const endDate = new Date(startDate);
-  endDate.setDate(endDate.getDate() + option.days - 1);
-  
-  const results = group.gradeResults.map(r => ({
-    ...r,
-    numAssessors: option.assessors,
-    numDays: option.days,
-    startDate: startDate.toISOString().split('T')[0],
-    endDate: endDate.toISOString().split('T')[0]
-  }));
+  try {
+    const group = window.currentGroupOptions && window.currentGroupOptions[groupIndex];
+    if (!group || !group.options || !group.options[optionIndex]) {
+      console.error('Invalid selection:', groupIndex, optionIndex, group);
+      alert('Invalid option selected. Please try again.');
+      return;
+    }
+    
+    const option = group.options[optionIndex];
+    const startDate = new Date(startDateInput.value || new Date().toISOString().split('T')[0]);
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + (option.days || 1) - 1);
+    
+    const results = group.gradeResults.map(r => ({
+      ...r,
+      numAssessors: option.assessors || 1,
+      numDays: option.days || 1,
+      startDate: startDate.toISOString().split('T')[0],
+      endDate: endDate.toISOString().split('T')[0]
+    }));
 
-  allocationResults = results;
-  displayResults(results, []);
-  optionsSection.style.display = 'none';
-  resultsSection.style.display = 'block';
+    allocationResults = results;
+    displayResults(results, []);
+    optionsSection.style.display = 'none';
+    resultsSection.style.display = 'block';
+  } catch (error) {
+    console.error('Error selecting option:', error);
+    alert('Error selecting option: ' + error.message);
+  }
 }
 
 downloadAllocBtn.addEventListener('click', () => {

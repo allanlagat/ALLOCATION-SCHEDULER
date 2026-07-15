@@ -10,8 +10,7 @@ let selectedOptionIndex = null;
 const fileInput = document.getElementById('fileInput');
 const fileName = document.getElementById('fileName');
 const uploadStatus = document.getElementById('uploadStatus');
-const startDateInput = document.getElementById('startDate');
-const endDateInput = document.getElementById('endDate');
+const examDaysInput = document.getElementById('examDays');
 const centreSelect = document.getElementById('centreSelect');
 const tradeSelect = document.getElementById('tradeSelect');
 const mergeBtn = document.getElementById('mergeBtn');
@@ -24,8 +23,11 @@ const resultsSection = document.getElementById('resultsSection');
 const resultsTableBody = document.querySelector('#resultsTable tbody');
 const optionsTableBody = document.querySelector('#optionsTable tbody');
 const optionsSection = document.getElementById('optionsSection');
+const assignmentsSection = document.getElementById('assignmentsSection');
+const assignmentsTableBody = document.querySelector('#assignmentsTable tbody');
 const downloadAllocBtn = document.getElementById('downloadAllocBtn');
 const downloadRegBtn = document.getElementById('downloadRegBtn');
+const downloadAssignmentsBtn = document.getElementById('downloadAssignmentsBtn');
 
 window.addEventListener('error', function(event) {
   console.error('Global error caught:', event.error);
@@ -41,6 +43,7 @@ window.addEventListener('unhandledrejection', function(event) {
 function updateSelectionSummary() {
   const centre = centreSelect.value;
   const selectedTrades = Array.from(tradeSelect.selectedOptions).map(o => o.value);
+  const examDays = examDaysInput.value;
   const hasMerges = Object.keys(mergedTrades).length > 0;
   
   let html = '';
@@ -53,6 +56,9 @@ function updateSelectionSummary() {
     }
     if (hasMerges) {
       html += ` | <strong>Merged groups:</strong> ${Object.keys(mergedTrades).map(c => `${c}: ${mergedTrades[c].join(' + ')}`).join(', ')}`;
+    }
+    if (examDays) {
+      html += ` | <strong>Exam Days:</strong> ${examDays}`;
     }
   } else {
     html = `<strong>No centre selected.</strong> Please select a centre to see available trades.`;
@@ -178,8 +184,7 @@ resetMergeBtn.addEventListener('click', () => {
 });
 
 allocateBtn.addEventListener('click', async () => {
-  const examStart = startDateInput.value;
-  const examEnd = endDateInput.value;
+  const examDays = examDaysInput.value;
   const centre = centreSelect.value;
   const selectedTrades = Array.from(tradeSelect.selectedOptions).map(o => o.value);
 
@@ -189,8 +194,8 @@ allocateBtn.addEventListener('click', async () => {
     return;
   }
 
-  if (!examStart || !examEnd) {
-    recommendationsDiv.innerHTML = '<p class="error">Please select examination start and end dates.</p>';
+  if (!examDays || isNaN(examDays) || examDays <= 0) {
+    recommendationsDiv.innerHTML = '<p class="error">Please enter a valid number of examination days.</p>';
     recommendationsDiv.style.display = 'block';
     return;
   }
@@ -204,8 +209,7 @@ allocateBtn.addEventListener('click', async () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        examStart,
-        examEnd,
+        examDays: parseInt(examDays),
         mergedTrades,
         selectedTrades: selectedTrades.length > 0 ? selectedTrades : null,
         selectedCentre: centre || null
@@ -236,6 +240,7 @@ allocateBtn.addEventListener('click', async () => {
         recommendationsDiv.style.display = 'block';
         resultsSection.style.display = 'none';
         optionsSection.style.display = 'none';
+        assignmentsSection.style.display = 'none';
       }
     } else {
       recommendationsDiv.innerHTML = `<p class="error">Allocation failed: ${data.error}</p>`;
@@ -260,7 +265,9 @@ function displayResults(results, recommendations) {
     recommendationsDiv.innerHTML = '';
   }
 
+  let totalCandidates = 0;
   for (const r of results) {
+    totalCandidates += r.numCandidates || 0;
     const row = document.createElement('tr');
     row.innerHTML = `
       <td>${r.centre}</td>
@@ -268,12 +275,20 @@ function displayResults(results, recommendations) {
       <td>${r.grade}</td>
       <td>${r.numCandidates}</td>
       <td>${r.numAssessors}</td>
-      <td>${r.startDate}</td>
-      <td>${r.endDate}</td>
       <td>${r.numDays}</td>
     `;
     resultsTableBody.appendChild(row);
   }
+
+  const totalRow = document.createElement('tr');
+  totalRow.innerHTML = `
+    <td><strong>Total</strong></td>
+    <td colspan="2"></td>
+    <td><strong>${totalCandidates}</strong></td>
+    <td><strong>${results.length > 0 ? results[0].numAssessors : 0}</strong></td>
+    <td><strong>${results.length > 0 ? results[0].numDays : 0}</strong></td>
+  `;
+  resultsTableBody.appendChild(totalRow);
 }
 
 function displayOptions(groupOptions) {
@@ -355,6 +370,7 @@ function displayOptions(groupOptions) {
 
 function selectOption(groupIndex, optionIndex) {
   try {
+    window.selectedGroupIndex = groupIndex;
     const group = window.currentGroupOptions && window.currentGroupOptions[groupIndex];
     if (!group || !group.options || !group.options[optionIndex]) {
       console.error('Invalid selection:', groupIndex, optionIndex, group);
@@ -363,25 +379,47 @@ function selectOption(groupIndex, optionIndex) {
     }
     
     const option = group.options[optionIndex];
-    const startDate = new Date(startDateInput.value || new Date().toISOString().split('T')[0]);
-    const endDate = new Date(startDate);
-    endDate.setDate(endDate.getDate() + (option.days || 1) - 1);
+    const examDays = parseInt(examDaysInput.value) || 1;
     
     const results = group.gradeResults.map(r => ({
       ...r,
       numAssessors: option.assessors || 1,
-      numDays: option.days || 1,
-      startDate: startDate.toISOString().split('T')[0],
-      endDate: endDate.toISOString().split('T')[0]
+      numDays: option.days || 1
     }));
 
     allocationResults = results;
     displayResults(results, []);
+    displayAssignments(group, option);
     optionsSection.style.display = 'none';
     resultsSection.style.display = 'block';
+    assignmentsSection.style.display = 'block';
   } catch (error) {
     console.error('Error selecting option:', error);
     alert('Error selecting option: ' + error.message);
+  }
+}
+
+function displayAssignments(group, option) {
+  assignmentsSection.style.display = 'block';
+  assignmentsTableBody.innerHTML = '';
+
+  if (!group.assignments || group.assignments.length === 0) {
+    assignmentsTableBody.innerHTML = '<tr><td colspan="7">No assignments available.</td></tr>';
+    return;
+  }
+
+  for (const assignment of group.assignments) {
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>${group.centre || 'N/A'}</td>
+      <td>${group.tradeOrMerged || 'N/A'}</td>
+      <td>Assessor ${assignment.assessorNumber}</td>
+      <td>${assignment.candidates.length}</td>
+      <td>${assignment.totalCandidateDays}</td>
+      <td>${assignment.candidates.map(c => c.candidateNumber).join(', ')}</td>
+      <td>${assignment.candidates.map(c => c.grade).join(', ')}</td>
+    `;
+    assignmentsTableBody.appendChild(row);
   }
 }
 
@@ -394,5 +432,14 @@ downloadAllocBtn.addEventListener('click', () => {
 downloadRegBtn.addEventListener('click', () => {
   if (!allocationResults.length) return;
   const url = `${API_BASE}/download/registers?results=${encodeURIComponent(JSON.stringify(allocationResults))}`;
+  window.open(url, '_blank');
+});
+
+downloadAssignmentsBtn.addEventListener('click', () => {
+  if (!window.currentGroupOptions || window.currentGroupOptions.length === 0) return;
+  const selectedGroup = window.currentGroupOptions[window.selectedGroupIndex || 0];
+  if (!selectedGroup || !selectedGroup.assignments) return;
+  
+  const url = `${API_BASE}/download/assignments?groupOptions=${encodeURIComponent(JSON.stringify([selectedGroup]))}`;
   window.open(url, '_blank');
 });

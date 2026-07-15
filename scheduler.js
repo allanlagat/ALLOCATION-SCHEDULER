@@ -53,53 +53,76 @@ class TradeGroup {
     return this.candidates.reduce((sum, c) => sum + (GRADE_DAYS[c.grade] || 0), 0);
   }
 
-  minAssessors() {
+  minAssessors(examDays) {
     const totalDays = this.totalCandidateDays();
-    return Math.max(1, Math.ceil(totalDays / 6));
+    const capacityPerAssessor = examDays * 6;
+    if (capacityPerAssessor <= 0) return 1;
+    return Math.max(1, Math.ceil(totalDays / capacityPerAssessor));
   }
 
-  minDaysForAssessors(numAssessors) {
+  daysForAssessors(numAssessors, examDays) {
     const totalDays = this.totalCandidateDays();
-    if (numAssessors === 0) return Infinity;
-    return Math.max(1, Math.ceil(totalDays / (numAssessors * 6)));
+    const capacity = numAssessors * examDays * 6;
+    if (capacity <= 0) return Infinity;
+    return Math.max(1, Math.ceil(totalDays / capacity));
   }
 
-  getOptions(maxAvailableDays) {
+  getOptions(examDays) {
     const options = [];
-    const minAssessors = this.minAssessors();
+    const minAssessors = this.minAssessors(examDays);
     
-    for (let assessors = minAssessors; assessors <= maxAvailableDays; assessors++) {
-      const days = this.minDaysForAssessors(assessors);
+    for (let assessors = minAssessors; assessors <= minAssessors + 10; assessors++) {
+      const days = this.daysForAssessors(assessors, examDays);
       options.push({
         assessors: assessors,
         days: days,
-        fits: days <= maxAvailableDays
+        fits: days <= examDays
       });
     }
     
     return options;
   }
+
+  assignCandidatesToAssessors(numAssessors, examDays) {
+    const sortedCandidates = [...this.candidates].sort((a, b) => {
+      const priorityDiff = GRADE_PRIORITY[a.grade] - GRADE_PRIORITY[b.grade];
+      if (priorityDiff !== 0) return priorityDiff;
+      return a.candidateNumber.localeCompare(b.candidateNumber);
+    });
+
+    const assignments = [];
+    for (let i = 0; i < numAssessors; i++) {
+      assignments.push({
+        assessorNumber: i + 1,
+        candidates: [],
+        totalCandidateDays: 0
+      });
+    }
+
+    for (const candidate of sortedCandidates) {
+      const candidateDays = GRADE_DAYS[candidate.grade] || 0;
+      let bestAssessor = 0;
+      let minLoad = assignments[0].totalCandidateDays;
+
+      for (let i = 1; i < assignments.length; i++) {
+        if (assignments[i].totalCandidateDays < minLoad) {
+          minLoad = assignments[i].totalCandidateDays;
+          bestAssessor = i;
+        }
+      }
+
+      assignments[bestAssessor].candidates.push(candidate);
+      assignments[bestAssessor].totalCandidateDays += candidateDays;
+    }
+
+    return assignments;
+  }
 }
 
 class ExamScheduler {
-  constructor(candidates, examStart, examEnd) {
+  constructor(candidates, examDays) {
     this.candidates = candidates;
-    this.examStart = new Date(examStart);
-    this.examEnd = new Date(examEnd);
-    this.availableDays = this.getExamDays();
-  }
-
-  getExamDays() {
-    const days = [];
-    let current = new Date(this.examStart);
-    while (current <= this.examEnd) {
-      const day = current.getDay();
-      if (day !== 0) {
-        days.push(new Date(current));
-      }
-      current.setDate(current.getDate() + 1);
-    }
-    return days;
+    this.examDays = examDays;
   }
 
   getGroups(mergedTrades = {}, selectedTrades = null, selectedCentre = null) {
@@ -139,14 +162,12 @@ class ExamScheduler {
 
     for (const group of groups) {
       const totalDaysNeeded = group.totalCandidateDays();
-      const minAssessors = group.minAssessors();
-      const minDays = group.minDaysForAssessors(minAssessors);
+      const minAssessors = group.minAssessors(this.examDays);
+      const minDays = group.daysForAssessors(minAssessors, this.examDays);
 
-      const options = group.getOptions(this.availableDays.length);
+      const options = group.getOptions(this.examDays);
       const preferred = options.find(o => o.fits) || options[0];
 
-      const startDate = this.availableDays[0];
-      const endDate = new Date(this.availableDays[preferred.days - 1]);
       const displayTrade = group.merged ? group.trades.join(' + ') : group.trades[0];
 
       const sortedGrades = Object.keys(group.candidatesByGrade()).sort(
@@ -161,13 +182,13 @@ class ExamScheduler {
           grade: grade,
           numCandidates: group.candidatesByGrade()[grade],
           numAssessors: preferred.assessors,
-          startDate: startDate.toISOString().split('T')[0],
-          endDate: endDate.toISOString().split('T')[0],
           numDays: preferred.days,
           merged: group.merged,
           originalTrades: group.trades,
         });
       }
+
+      const assignments = group.assignCandidatesToAssessors(preferred.assessors, this.examDays);
 
       groupOptions.push({
         centre: group.centre,
@@ -178,12 +199,13 @@ class ExamScheduler {
         totalCandidateDays: totalDaysNeeded,
         options: options,
         preferred: preferred,
-        gradeResults: gradeResults
+        gradeResults: gradeResults,
+        assignments: assignments
       });
 
       if (!preferred.fits) {
         recommendations.push(
-          `Centre: ${group.centre} | Trade: ${displayTrade} | Requires ${preferred.days} days but only ${this.availableDays.length} days available. Consider adding assessors.`
+          `Centre: ${group.centre} | Trade: ${displayTrade} | Requires ${preferred.days} days but only ${this.examDays} days available. Consider adding assessors.`
         );
       }
     }
@@ -277,6 +299,37 @@ function generateRegisterExcel(results, candidates) {
   return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 }
 
+function generateAssignmentsExcel(groupOptions) {
+  const wb = XLSX.utils.book_new();
+
+  for (const group of groupOptions) {
+    if (!group.assignments || group.assignments.length === 0) continue;
+
+    const sheetData = [];
+    sheetData.push(['Centre', 'Trade', 'Assessor', 'Candidate Number', 'Candidate Name', 'Grade', 'Department']);
+
+    for (const assignment of group.assignments) {
+      for (const candidate of assignment.candidates) {
+        sheetData.push([
+          group.centre,
+          group.tradeOrMerged,
+          assignment.assessorNumber,
+          candidate.candidateNumber,
+          candidate.candidateName,
+          candidate.grade,
+          candidate.department
+        ]);
+      }
+    }
+
+    const ws = XLSX.utils.aoa_to_sheet(sheetData);
+    const sheetName = `${group.centre}_${group.tradeOrMerged}_Assignments`.substring(0, 31);
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  }
+
+  return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+}
+
 module.exports = {
   Candidate,
   TradeGroup,
@@ -285,6 +338,7 @@ module.exports = {
   parseCSVFile,
   generateAllocationExcel,
   generateRegisterExcel,
+  generateAssignmentsExcel,
   GRADE_DAYS,
   GRADE_PRIORITY,
 };

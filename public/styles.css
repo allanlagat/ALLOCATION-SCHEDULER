@@ -287,3 +287,15 @@ th {
 tr:hover {
   background: #f7fafc;
 }
+
+.assignments-section {
+  animation: fadeIn 0.5s;
+}
+
+.warning {
+  background: #fefcbf;
+  color: #744210;
+  padding: 12px;
+  text-align: center;
+  font-weight: 600;
+}

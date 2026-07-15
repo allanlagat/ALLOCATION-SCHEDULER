@@ -9,6 +9,7 @@ const {
   parseCSVFile,
   generateAllocationExcel,
   generateRegisterExcel,
+  generateAssignmentsExcel,
 } = require('./scheduler');
 
 const PORT = process.env.PORT || 3000;
@@ -156,13 +157,13 @@ app.post('/upload', upload.single('file'), (req, res) => {
 
 app.post('/allocate', (req, res) => {
   try {
-    const { examStart, examEnd, mergedTrades, selectedTrades, selectedCentre } = req.body;
+    const { examDays, mergedTrades, selectedTrades, selectedCentre } = req.body;
 
-    if (!examStart || !examEnd) {
-      return res.status(400).json({ error: 'Missing exam dates' });
+    if (!examDays || isNaN(examDays) || examDays <= 0) {
+      return res.status(400).json({ error: 'Invalid exam days. Please enter a positive number.' });
     }
 
-    const scheduler = new ExamScheduler(uploadedCandidates, examStart, examEnd);
+    const scheduler = new ExamScheduler(uploadedCandidates, parseInt(examDays));
     const groups = scheduler.getGroups(mergedTrades || {}, selectedTrades || null, selectedCentre || null);
     const { groupOptions, recommendations } = scheduler.allocate(groups);
 
@@ -190,6 +191,18 @@ app.get('/download/registers', (req, res) => {
     const buffer = generateRegisterExcel(results, uploadedCandidates);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', 'attachment; filename=candidate_registers.xlsx');
+    res.send(buffer);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/download/assignments', (req, res) => {
+  try {
+    const groupOptions = JSON.parse(req.query.groupOptions || '[]');
+    const buffer = generateAssignmentsExcel(groupOptions);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename=assessor_assignments.xlsx');
     res.send(buffer);
   } catch (error) {
     res.status(500).json({ error: error.message });

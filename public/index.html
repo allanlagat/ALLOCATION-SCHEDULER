@@ -26,15 +26,9 @@
 
       <section class="card">
         <h2>2. Examination Period</h2>
-        <div class="form-row">
-          <div class="form-group">
-            <label for="startDate">Start Date</label>
-            <input type="date" id="startDate" />
-          </div>
-          <div class="form-group">
-            <label for="endDate">End Date</label>
-            <input type="date" id="endDate" />
-          </div>
+        <div class="form-group">
+          <label for="examDays">Number of Examination Days (Mon-Sat)</label>
+          <input type="number" id="examDays" min="1" max="31" placeholder="e.g., 12" />
         </div>
       </section>
 
@@ -97,8 +91,6 @@
                 <th>Grade</th>
                 <th>Candidates</th>
                 <th>Assessors</th>
-                <th>Start Date</th>
-                <th>End Date</th>
                 <th>Days</th>
               </tr>
             </thead>
@@ -108,6 +100,30 @@
         <div class="button-group">
           <button id="downloadAllocBtn" class="btn btn-success">Download Allocation Summary</button>
           <button id="downloadRegBtn" class="btn btn-success">Download Candidate Registers</button>
+        </div>
+      </section>
+
+      <section class="card assignments-section" id="assignmentsSection" style="display:none;">
+        <h2>Assessor Assignments</h2>
+        <p class="hint">Candidates assigned to each assessor based on the selected option.</p>
+        <div class="table-container">
+          <table id="assignmentsTable">
+            <thead>
+              <tr>
+                <th>Centre</th>
+                <th>Trade</th>
+                <th>Assessor</th>
+                <th>Candidates Assigned</th>
+                <th>Total Candidate Days</th>
+                <th>Candidate Numbers</th>
+                <th>Grades</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="button-group">
+          <button id="downloadAssignmentsBtn" class="btn btn-success">Download Assessor Assignments</button>
         </div>
       </section>
     </main>

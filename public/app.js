@@ -26,8 +26,6 @@ const optionsTableBody = document.querySelector('#optionsTable tbody');
 const optionsSection = document.getElementById('optionsSection');
 const downloadAllocBtn = document.getElementById('downloadAllocBtn');
 const downloadRegBtn = document.getElementById('downloadRegBtn');
-const optionsSection = document.getElementById('optionsSection');
-const optionsTableBody = document.querySelector('#optionsTable tbody');
 
 function updateSelectionSummary() {
   const centre = centreSelect.value;

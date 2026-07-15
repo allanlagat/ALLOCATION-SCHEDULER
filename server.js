@@ -6,6 +6,7 @@ const {
   Candidate,
   ExamScheduler,
   parseExcelFile,
+  parseCSVFile,
   generateAllocationExcel,
   generateRegisterExcel,
 } = require('./scheduler');
@@ -48,12 +49,26 @@ app.post('/upload', upload.single('file'), (req, res) => {
     console.log(`Received file: ${req.file.originalname}, size: ${req.file.size} bytes`);
 
     let rows;
+    const isCSV = req.file.originalname.toLowerCase().endsWith('.csv');
+    const fileSizeMB = req.file.size / (1024 * 1024);
+    
+    if (!isCSV && fileSizeMB > 5) {
+      console.log(`Large Excel file (${fileSizeMB.toFixed(1)}MB). Consider using CSV for faster processing.`);
+    }
+
     try {
-      rows = parseExcelFile(req.file.buffer);
+      if (isCSV) {
+        console.log('Parsing as CSV...');
+        rows = parseCSVFile(req.file.buffer);
+      } else {
+        console.log('Parsing as Excel...');
+        rows = parseExcelFile(req.file.buffer);
+      }
+      console.log(`Parsed ${rows.length} rows`);
     } catch (parseError) {
-      console.error('Excel parsing error:', parseError);
+      console.error('Parsing error:', parseError);
       return res.status(400).json({ 
-        error: `Failed to parse Excel file: ${parseError.message}. Please ensure the file is a valid Excel file.` 
+        error: `Failed to parse file: ${parseError.message}. ${isCSV ? 'Please ensure the CSV format is correct.' : 'Please ensure the Excel file is not corrupted. Try converting to CSV for faster processing.'}` 
       });
     }
 

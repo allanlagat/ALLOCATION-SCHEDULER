@@ -190,10 +190,38 @@ class ExamScheduler {
 }
 
 function parseExcelFile(buffer) {
-  const workbook = XLSX.read(buffer, { type: 'buffer' });
+  const workbook = XLSX.read(buffer, { 
+    type: 'buffer',
+    cellStyles: false,
+    cellFormula: false,
+    cellHTML: false,
+    cellNF: false,
+    cellText: false,
+    dense: true
+  });
   const sheetName = workbook.SheetNames[0];
   const worksheet = workbook.Sheets[sheetName];
-  return XLSX.utils.sheet_to_json(worksheet);
+  return XLSX.utils.sheet_to_json(worksheet, { raw: false, defval: '' });
+}
+
+function parseCSVFile(buffer) {
+  const text = buffer.toString('utf-8');
+  const lines = text.split(/\r?\n/).filter(line => line.trim());
+  if (lines.length === 0) return [];
+  
+  const headers = lines[0].split(',').map(h => h.trim().replace(/^["']|["']$/g, ''));
+  const rows = [];
+  
+  for (let i = 1; i < lines.length; i++) {
+    const values = lines[i].split(',').map(v => v.trim().replace(/^["']|["']$/g, ''));
+    const row = {};
+    headers.forEach((header, index) => {
+      row[header] = values[index] || '';
+    });
+    rows.push(row);
+  }
+  
+  return rows;
 }
 
 function generateAllocationExcel(results) {
@@ -251,6 +279,7 @@ module.exports = {
   TradeGroup,
   ExamScheduler,
   parseExcelFile,
+  parseCSVFile,
   generateAllocationExcel,
   generateRegisterExcel,
   GRADE_DAYS,

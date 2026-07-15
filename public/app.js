@@ -70,7 +70,8 @@ fileInput.addEventListener('change', async (e) => {
   if (!file) return;
 
   fileName.textContent = file.name;
-  uploadStatus.textContent = 'Uploading... This may take a moment for large files.';
+  const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
+  uploadStatus.textContent = `Uploading ${file.name} (${fileSizeMB}MB)... This may take a moment.`;
   uploadStatus.className = 'status loading';
 
   const formData = new FormData();

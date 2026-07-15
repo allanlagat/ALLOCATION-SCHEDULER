@@ -201,10 +201,17 @@ allocateBtn.addEventListener('click', async () => {
     });
 
     const data = await response.json();
+    console.log('Allocation response received, groupOptions count:', data.groupOptions ? data.groupOptions.length : 0);
 
     if (response.ok) {
       if (data.groupOptions && data.groupOptions.length > 0) {
-        displayOptions(data.groupOptions);
+        try {
+          displayOptions(data.groupOptions);
+        } catch (displayError) {
+          console.error('Error in displayOptions:', displayError);
+          throw displayError;
+        }
+        
         if (data.recommendations && data.recommendations.length > 0) {
           recommendationsDiv.innerHTML = data.recommendations.map(r => `<p>${r}</p>`).join('');
           recommendationsDiv.style.display = 'block';
@@ -223,6 +230,7 @@ allocateBtn.addEventListener('click', async () => {
       recommendationsDiv.style.display = 'block';
     }
   } catch (error) {
+    console.error('Allocation error details:', error);
     recommendationsDiv.innerHTML = `<p class="error">Allocation failed: ${error.message}</p>`;
     recommendationsDiv.style.display = 'block';
   } finally {
@@ -258,6 +266,7 @@ function displayResults(results, recommendations) {
 
 function displayOptions(groupOptions) {
   try {
+    console.log('displayOptions called with', groupOptions ? groupOptions.length : 0, 'groups');
     optionsSection.style.display = 'block';
     optionsTableBody.innerHTML = '';
 
@@ -317,6 +326,8 @@ function displayOptions(groupOptions) {
       `;
       optionsTableBody.appendChild(moreRow);
     }
+    
+    console.log('displayOptions completed successfully');
   } catch (error) {
     console.error('Error displaying options:', error);
     console.error('Group options data sample:', groupOptions ? groupOptions.slice(0, 2) : 'null');

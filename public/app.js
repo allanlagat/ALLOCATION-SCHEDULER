@@ -207,7 +207,8 @@ allocateBtn.addEventListener('click', async () => {
         examStart,
         examEnd,
         mergedTrades,
-        selectedTrades: selectedTrades.length > 0 ? selectedTrades : null
+        selectedTrades: selectedTrades.length > 0 ? selectedTrades : null,
+        selectedCentre: centre || null
       }),
     });
 
@@ -276,74 +277,80 @@ function displayResults(results, recommendations) {
 }
 
 function displayOptions(groupOptions) {
-  try {
-    console.log('displayOptions called with', groupOptions ? groupOptions.length : 0, 'groups');
-    optionsSection.style.display = 'block';
-    optionsTableBody.innerHTML = '';
+  console.log('displayOptions called with', groupOptions ? groupOptions.length : 0, 'groups');
+  optionsSection.style.display = 'block';
+  optionsTableBody.innerHTML = '';
 
-    window.currentGroupOptions = groupOptions;
+  window.currentGroupOptions = groupOptions;
 
-    if (!groupOptions || groupOptions.length === 0) {
-      optionsTableBody.innerHTML = '<tr><td colspan="6">No options available. Please check your data and dates.</td></tr>';
-      return;
-    }
+  if (!groupOptions || groupOptions.length === 0) {
+    optionsTableBody.innerHTML = '<tr><td colspan="6">No options available. Please check your data and dates.</td></tr>';
+    return;
+  }
 
-    const MAX_DISPLAY = 50;
-    const displayOptions = groupOptions.slice(0, MAX_DISPLAY);
-    const hasMore = groupOptions.length > MAX_DISPLAY;
+  const MAX_DISPLAY = 50;
+  const displayList = groupOptions.slice(0, MAX_DISPLAY);
+  const hasMore = groupOptions.length > MAX_DISPLAY;
 
-    for (let i = 0; i < displayOptions.length; i++) {
-      const group = displayOptions[i];
-      
-      if (!group || !group.options) {
-        console.error('Invalid group data at index', i, group);
-        continue;
-      }
-      
-      const preferred = group.preferred;
-      
-      const row = document.createElement('tr');
-      row.innerHTML = `
-        <td>${group.centre || 'N/A'}</td>
-        <td>${group.tradeOrMerged || 'N/A'}</td>
-        <td>${group.totalCandidates || 0}</td>
-        <td>${group.totalCandidateDays || 0}</td>
-        <td>${Array.isArray(group.options) && group.options.length > 0 ? group.options.map((opt, idx) => {
-          if (!opt) {
-            console.error('Undefined option at group', i, 'index', idx);
-            return 'Error';
-          }
-          return `<button class="option-btn ${opt === preferred ? 'preferred' : ''}" 
-                  onclick="selectOption(${i}, ${idx})"
-                  title="${opt === preferred ? 'Recommended: fits within available period' : (opt.fits ? 'Fits within period' : 'Exceeds available period')}">
-            Option ${idx + 1}<br>
-            <strong>${opt.assessors || 0}</strong> assessor(s)<br>
-            <strong>${opt.days || 0}</strong> day(s)<br>
-            ${opt.fits ? 'Fits' : 'Exceeds'}
-          </button>`;
-        }).join(' ') : 'N/A'}</td>
-        <td>${preferred && preferred.fits ? 'Yes' : 'No'}</td>
-      `;
-      optionsTableBody.appendChild(row);
-    }
-
-    if (hasMore) {
-      const moreRow = document.createElement('tr');
-      moreRow.innerHTML = `
-        <td colspan="6" class="warning">
-          Showing ${MAX_DISPLAY} of ${groupOptions.length} groups. 
-          Please select specific trades to see fewer results, or select options above.
-        </td>
-      `;
-      optionsTableBody.appendChild(moreRow);
+  for (let i = 0; i < displayList.length; i++) {
+    const group = displayList[i];
+    
+    if (!group || !group.options) {
+      console.error('Invalid group data at index', i, group);
+      continue;
     }
     
-    console.log('displayOptions completed successfully');
-  } catch (error) {
-    console.error('Error displaying options:', error);
-    console.error('Group options data sample:', groupOptions ? groupOptions.slice(0, 2) : 'null');
-    optionsTableBody.innerHTML = `<tr><td colspan="6" class="error">Error displaying options: ${error.message}. Try selecting fewer trades.</td></tr>`;
+    const preferred = group.preferred;
+    
+    const row = document.createElement('tr');
+    
+    const centreCell = group.centre || 'N/A';
+    const tradeCell = group.tradeOrMerged || 'N/A';
+    const candidatesCell = group.totalCandidates || 0;
+    const daysCell = group.totalCandidateDays || 0;
+    
+    let optionsHtml = 'N/A';
+    if (Array.isArray(group.options) && group.options.length > 0) {
+      const buttons = [];
+      for (let j = 0; j < group.options.length; j++) {
+        const opt = group.options[j];
+        if (!opt) {
+          console.error('Undefined option at group', i, 'index', j);
+          buttons.push('Error');
+          continue;
+        }
+        const isPreferred = (preferred && opt === preferred);
+        const titleText = isPreferred ? 'Recommended: fits within available period' : (opt.fits ? 'Fits within period' : 'Exceeds available period');
+        const btnHtml = '<button class="option-btn ' + (isPreferred ? 'preferred' : '') + '" onclick="selectOption(' + i + ', ' + j + ')" title="' + titleText + '">' +
+          'Option ' + (j + 1) + '<br>' +
+          '<strong>' + (opt.assessors || 0) + '</strong> assessor(s)<br>' +
+          '<strong>' + (opt.days || 0) + '</strong> day(s)<br>' +
+          (opt.fits ? 'Fits' : 'Exceeds') +
+          '</button>';
+        buttons.push(btnHtml);
+      }
+      optionsHtml = buttons.join(' ');
+    }
+    
+    const fitsCell = (preferred && preferred.fits) ? 'Yes' : 'No';
+    
+    row.innerHTML = '<td>' + centreCell + '</td>' +
+      '<td>' + tradeCell + '</td>' +
+      '<td>' + candidatesCell + '</td>' +
+      '<td>' + daysCell + '</td>' +
+      '<td>' + optionsHtml + '</td>' +
+      '<td>' + fitsCell + '</td>';
+    
+    optionsTableBody.appendChild(row);
   }
+
+  if (hasMore) {
+    const moreRow = document.createElement('tr');
+    moreRow.innerHTML = '<td colspan="6" class="warning">Showing ' + MAX_DISPLAY + ' of ' + groupOptions.length + ' groups. Please select specific trades to see fewer results, or select options above.</td>';
+    optionsTableBody.appendChild(moreRow);
+  }
+  
+  console.log('displayOptions completed successfully');
 }
 
 function selectOption(groupIndex, optionIndex) {

@@ -102,10 +102,13 @@ class ExamScheduler {
     return days;
   }
 
-  getGroups(mergedTrades = {}, selectedTrades = null) {
+  getGroups(mergedTrades = {}, selectedTrades = null, selectedCentre = null) {
     const groups = {};
 
     for (const c of this.candidates) {
+      if (selectedCentre && c.centre !== selectedCentre) {
+        continue;
+      }
       if (selectedTrades && selectedTrades.length > 0 && !selectedTrades.includes(c.trade)) {
         continue;
       }

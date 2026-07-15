@@ -156,14 +156,14 @@ app.post('/upload', upload.single('file'), (req, res) => {
 
 app.post('/allocate', (req, res) => {
   try {
-    const { examStart, examEnd, mergedTrades, selectedTrades } = req.body;
+    const { examStart, examEnd, mergedTrades, selectedTrades, selectedCentre } = req.body;
 
     if (!examStart || !examEnd) {
       return res.status(400).json({ error: 'Missing exam dates' });
     }
 
     const scheduler = new ExamScheduler(uploadedCandidates, examStart, examEnd);
-    const groups = scheduler.getGroups(mergedTrades || {}, selectedTrades || null);
+    const groups = scheduler.getGroups(mergedTrades || {}, selectedTrades || null, selectedCentre || null);
     const { groupOptions, recommendations } = scheduler.allocate(groups);
 
     res.json({ groupOptions, recommendations });

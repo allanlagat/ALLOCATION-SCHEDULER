@@ -70,17 +70,23 @@ fileInput.addEventListener('change', async (e) => {
   if (!file) return;
 
   fileName.textContent = file.name;
-  uploadStatus.textContent = 'Uploading...';
-  uploadStatus.className = 'status';
+  uploadStatus.textContent = 'Uploading... This may take a moment for large files.';
+  uploadStatus.className = 'status loading';
 
   const formData = new FormData();
   formData.append('file', file);
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 300000);
+
     const response = await fetch(`${API_BASE}/upload`, {
       method: 'POST',
       body: formData,
+      signal: controller.signal
     });
+
+    clearTimeout(timeoutId);
 
     const data = await response.json();
 
@@ -94,11 +100,15 @@ fileInput.addEventListener('change', async (e) => {
       updateCentreSelect();
       updateSelectionSummary();
     } else {
-      uploadStatus.textContent = data.error;
+      uploadStatus.textContent = data.error || 'Upload failed';
       uploadStatus.className = 'status error';
     }
   } catch (error) {
-    uploadStatus.textContent = 'Upload failed: ' + error.message;
+    if (error.name === 'AbortError') {
+      uploadStatus.textContent = 'Upload timed out. The file may be too large. Please try a smaller file or contact support.';
+    } else {
+      uploadStatus.textContent = 'Upload failed: ' + error.message;
+    }
     uploadStatus.className = 'status error';
   }
 });

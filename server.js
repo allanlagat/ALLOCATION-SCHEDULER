@@ -10,12 +10,32 @@ const {
   generateRegisterExcel,
 } = require('./scheduler');
 
+const PORT = process.env.PORT || 3000;
+
 const app = express();
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({ 
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 50 * 1024 * 1024
+  }
+});
 
 app.use(cors());
-app.use(express.json());
-app.use(express.static('public'));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.static('public', {
+  setHeaders: (res, path) => {
+    if (path.endsWith('.html') || path.endsWith('.js') || path.endsWith('.css')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    }
+  }
+}));
+
+const server = app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+});
+
+server.timeout = 300000;
 
 let uploadedCandidates = [];
 
@@ -25,7 +45,18 @@ app.post('/upload', upload.single('file'), (req, res) => {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    const rows = parseExcelFile(req.file.buffer);
+    console.log(`Received file: ${req.file.originalname}, size: ${req.file.size} bytes`);
+
+    let rows;
+    try {
+      rows = parseExcelFile(req.file.buffer);
+    } catch (parseError) {
+      console.error('Excel parsing error:', parseError);
+      return res.status(400).json({ 
+        error: `Failed to parse Excel file: ${parseError.message}. Please ensure the file is a valid Excel file.` 
+      });
+    }
+
     const candidates = [];
 
     const normalize = (s) => String(s || '').trim().toLowerCase();
@@ -51,7 +82,6 @@ app.post('/upload', upload.single('file'), (req, res) => {
       const normalizedActual = actualKeys.map(normalize);
       
       const mappedFields = {};
-      const unmapped = [];
       
       for (let i = 0; i < actualKeys.length; i++) {
         const normalized = normalizedActual[i];
@@ -59,8 +89,6 @@ app.post('/upload', upload.single('file'), (req, res) => {
         
         if (aliasToField[normalized]) {
           mappedFields[aliasToField[normalized]] = original;
-        } else {
-          unmapped.push(original);
         }
       }
 
@@ -106,6 +134,7 @@ app.post('/upload', upload.single('file'), (req, res) => {
       tradesByCentre: tradesArray
     });
   } catch (error) {
+    console.error('Upload error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -170,7 +199,3 @@ app.get('/centres', (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});

@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Examination Candidate Allocation and Scheduling System</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Examination Candidate Allocation and Scheduling System</h1>
+    </header>
+
+    <main>
+      <section class="card">
+        <h2>1. Upload Candidate Data</h2>
+        <div class="upload-area">
+          <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" />
+          <label for="fileInput" class="file-label">Choose Excel/CSV File</label>
+          <span id="fileName">No file chosen</span>
+        </div>
+        <p class="hint">Required columns: Candidate Number, Candidate Name, Centre, Trade, Grade, Department</p>
+        <p id="uploadStatus" class="status"></p>
+      </section>
+
+      <section class="card">
+        <h2>2. Examination Period</h2>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="startDate">Start Date</label>
+            <input type="date" id="startDate" />
+          </div>
+          <div class="form-group">
+            <label for="endDate">End Date</label>
+            <input type="date" id="endDate" />
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>3. Trade Merge</h2>
+        <div class="form-group">
+          <label for="centreSelect">Select Centre</label>
+          <select id="centreSelect">
+            <option value="">-- Select Centre --</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="tradeSelect">Select Trades to Merge</label>
+          <select id="tradeSelect" multiple size="5">
+            <option value="">-- Select Trades --</option>
+          </select>
+        </div>
+        <div class="button-group">
+          <button id="mergeBtn" class="btn btn-primary">Merge Trades</button>
+          <button id="resetMergeBtn" class="btn btn-secondary">Reset Merges</button>
+        </div>
+        <div id="mergeStatus" class="status"></div>
+      </section>
+
+      <section class="card">
+        <h2>4. Run Allocation</h2>
+        <button id="allocateBtn" class="btn btn-primary btn-large">Run Allocation</button>
+        <p id="recommendations" class="recommendations"></p>
+      </section>
+
+      <section class="card results-section" id="resultsSection" style="display:none;">
+        <h2>Allocation Results</h2>
+        <div class="table-container">
+          <table id="resultsTable">
+            <thead>
+              <tr>
+                <th>Centre</th>
+                <th>Trade/Merged Trade</th>
+                <th>Grade</th>
+                <th>Candidates</th>
+                <th>Assessors</th>
+                <th>Start Date</th>
+                <th>End Date</th>
+                <th>Days</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="button-group">
+          <button id="downloadAllocBtn" class="btn btn-success">Download Allocation Summary</button>
+          <button id="downloadRegBtn" class="btn btn-success">Download Candidate Registers</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -28,24 +28,82 @@ app.post('/upload', upload.single('file'), (req, res) => {
     const rows = parseExcelFile(req.file.buffer);
     const candidates = [];
 
-    for (const row of rows) {
-      const grade = String(row['Grade'] || '').trim();
-      if (!grade) continue;
+    const normalize = (s) => String(s || '').trim().toLowerCase();
 
-      candidates.push(new Candidate(
-        String(row['Candidate Number'] || ''),
-        String(row['Candidate Name'] || ''),
-        String(row['Centre'] || ''),
-        String(row['Trade'] || ''),
-        grade,
-        String(row['Department'] || ''),
-      ));
+    const columnAliases = {
+      'candidate number': ['candidate number', 'candidate no', 'candidate id', 'id', 'number'],
+      'candidate name': ['candidate name', 'name', 'full name', 'candidate'],
+      'centre': ['centre', 'center', 'campus', 'location', 'institution', 'site'],
+      'trade': ['trade', 'job', 'occupation', 'craft', 'specialization'],
+      'grade': ['grade', 'level', 'classification', 'rank', 'category'],
+      'department': ['department', 'dept', 'division', 'section', 'unit']
+    };
+
+    const aliasToField = {};
+    for (const [field, aliases] of Object.entries(columnAliases)) {
+      for (const alias of aliases) {
+        aliasToField[alias] = field;
+      }
+    }
+
+    if (rows.length > 0) {
+      const actualKeys = Object.keys(rows[0]);
+      const normalizedActual = actualKeys.map(normalize);
+      
+      const mappedFields = {};
+      const unmapped = [];
+      
+      for (let i = 0; i < actualKeys.length; i++) {
+        const normalized = normalizedActual[i];
+        const original = actualKeys[i];
+        
+        if (aliasToField[normalized]) {
+          mappedFields[aliasToField[normalized]] = original;
+        } else {
+          unmapped.push(original);
+        }
+      }
+
+      const requiredFields = Object.keys(columnAliases);
+      const missing = requiredFields.filter(f => !mappedFields[f]);
+      
+      if (missing.length > 0) {
+        return res.status(400).json({ 
+          error: `Could not find required columns: ${missing.join(', ')}. Found columns: ${actualKeys.join(', ')}. Please ensure your Excel file has columns like: Candidate Number, Candidate Name, Centre, Trade, Grade, Department` 
+        });
+      }
+
+      for (const row of rows) {
+        const grade = String(row[mappedFields['grade']] || '').trim();
+        if (!grade) continue;
+
+        candidates.push(new Candidate(
+          String(row[mappedFields['candidate number']] || ''),
+          String(row[mappedFields['candidate name']] || ''),
+          String(row[mappedFields['centre']] || ''),
+          String(row[mappedFields['trade']] || ''),
+          grade,
+          String(row[mappedFields['department']] || ''),
+        ));
+      }
     }
 
     uploadedCandidates = candidates;
+    const centres = [...new Set(candidates.map(c => c.centre))].filter(Boolean);
+    const tradesByCentre = {};
+    for (const c of candidates) {
+      if (!c.centre) continue;
+      if (!tradesByCentre[c.centre]) tradesByCentre[c.centre] = new Set();
+      tradesByCentre[c.centre].add(c.trade);
+    }
+    const tradesArray = {};
+    for (const k in tradesByCentre) tradesArray[k] = [...tradesByCentre[k]];
+    
     res.json({
-      message: `Loaded ${candidates.length} candidates`,
+      message: `Loaded ${candidates.length} candidates from ${centres.length} centre(s)`,
       count: candidates.length,
+      centres: centres,
+      tradesByCentre: tradesArray
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

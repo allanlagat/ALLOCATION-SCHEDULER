@@ -197,6 +197,24 @@ input[type="file"] {
   color: #744210;
 }
 
+.selection-summary {
+  margin-bottom: 15px;
+  padding: 12px;
+  background: #edf2f7;
+  border-radius: 5px;
+  font-size: 0.9rem;
+  color: #4a5568;
+}
+
+.selection-summary strong {
+  color: #2d3748;
+}
+
+.error {
+  color: #c53030;
+  font-weight: 600;
+}
+
 .results-section {
   animation: fadeIn 0.5s;
 }

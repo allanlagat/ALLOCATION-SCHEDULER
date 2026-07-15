@@ -18,10 +18,46 @@ const resetMergeBtn = document.getElementById('resetMergeBtn');
 const mergeStatus = document.getElementById('mergeStatus');
 const allocateBtn = document.getElementById('allocateBtn');
 const recommendationsDiv = document.getElementById('recommendations');
+const selectionSummary = document.getElementById('selectionSummary');
 const resultsSection = document.getElementById('resultsSection');
 const resultsTableBody = document.querySelector('#resultsTable tbody');
 const downloadAllocBtn = document.getElementById('downloadAllocBtn');
 const downloadRegBtn = document.getElementById('downloadRegBtn');
+
+function updateSelectionSummary() {
+  const centre = centreSelect.value;
+  const selectedTrades = Array.from(tradeSelect.selectedOptions).map(o => o.value);
+  const hasMerges = Object.keys(mergedTrades).length > 0;
+  
+  let html = '';
+  if (centre) {
+    html += `<strong>Selected Centre:</strong> ${centre}`;
+    if (selectedTrades.length > 0) {
+      html += ` | <strong>Trades visible:</strong> ${selectedTrades.length}`;
+    }
+    if (hasMerges) {
+      html += ` | <strong>Merged groups:</strong> ${Object.keys(mergedTrades).map(c => `${c}: ${mergedTrades[c].join(' + ')}`).join(', ')}`;
+    }
+    html += ` | <strong>Note:</strong> Allocation will run for all trades in the selected centre(s). Use merge to combine trades.`;
+  } else {
+    html = `<strong>No centre selected.</strong> Please select a centre to see available trades.`;
+  }
+  selectionSummary.innerHTML = html;
+}
+
+centreSelect.addEventListener('change', () => {
+  const centre = centreSelect.value;
+  tradeSelect.innerHTML = '<option value="">-- Select Trades --</option>';
+  if (centre && tradesByCentre[centre]) {
+    tradesByCentre[centre].forEach(trade => {
+      const option = document.createElement('option');
+      option.value = trade;
+      option.textContent = trade;
+      tradeSelect.appendChild(option);
+    });
+  }
+  updateSelectionSummary();
+});
 
 fileInput.addEventListener('change', async (e) => {
   const file = e.target.files[0];
@@ -46,10 +82,11 @@ fileInput.addEventListener('change', async (e) => {
       uploadStatus.textContent = data.message;
       uploadStatus.className = 'status success';
       currentCandidates = [];
-      centres = [];
-      tradesByCentre = {};
+      centres = data.centres || [];
+      tradesByCentre = data.tradesByCentre || {};
       mergedTrades = {};
-      loadCentres();
+      updateCentreSelect();
+      updateSelectionSummary();
     } else {
       uploadStatus.textContent = data.error;
       uploadStatus.className = 'status error';
@@ -114,6 +151,7 @@ mergeBtn.addEventListener('click', () => {
   mergedTrades[centre] = selectedTrades;
   mergeStatus.textContent = `Merged trades for ${centre}: ${selectedTrades.join(', ')}`;
   mergeStatus.className = 'status success';
+  updateSelectionSummary();
 });
 
 resetMergeBtn.addEventListener('click', () => {
@@ -122,21 +160,30 @@ resetMergeBtn.addEventListener('click', () => {
     delete mergedTrades[centre];
     mergeStatus.textContent = `Merges reset for ${centre}`;
     mergeStatus.className = 'status success';
+    updateSelectionSummary();
   }
 });
 
 allocateBtn.addEventListener('click', async () => {
   const examStart = startDateInput.value;
   const examEnd = endDateInput.value;
+  const centre = centreSelect.value;
 
-  if (!examStart || !examEnd) {
-    recommendationsDiv.innerHTML = '<p class="error">Please select examination dates</p>';
+  if (!centre) {
+    recommendationsDiv.innerHTML = '<p class="error">Please select a centre before running allocation.</p>';
     recommendationsDiv.style.display = 'block';
     return;
   }
 
-  recommendationsDiv.innerHTML = 'Running allocation...';
+  if (!examStart || !examEnd) {
+    recommendationsDiv.innerHTML = '<p class="error">Please select examination start and end dates.</p>';
+    recommendationsDiv.style.display = 'block';
+    return;
+  }
+
+  recommendationsDiv.innerHTML = 'Running allocation... This may take a moment for large datasets.';
   recommendationsDiv.style.display = 'block';
+  allocateBtn.disabled = true;
 
   try {
     const response = await fetch(`${API_BASE}/allocate`, {
@@ -154,11 +201,16 @@ allocateBtn.addEventListener('click', async () => {
     if (response.ok) {
       allocationResults = data.results;
       displayResults(data.results, data.recommendations);
+      if (data.results.length === 0) {
+        recommendationsDiv.innerHTML = '<p class="error">Allocation completed but returned no results. Check your data and dates.</p>';
+      }
     } else {
-      recommendationsDiv.innerHTML = `<p class="error">${data.error}</p>`;
+      recommendationsDiv.innerHTML = `<p class="error">Allocation failed: ${data.error}</p>`;
     }
   } catch (error) {
     recommendationsDiv.innerHTML = `<p class="error">Allocation failed: ${error.message}</p>`;
+  } finally {
+    allocateBtn.disabled = false;
   }
 });
 

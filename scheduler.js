@@ -90,11 +90,17 @@ class ExamScheduler {
     const groups = {};
 
     for (const c of this.candidates) {
-      const tradeList = mergedTrades[c.centre] || [c.trade];
+      const centreMerges = mergedTrades[c.centre];
+      let tradeList;
+      if (centreMerges && centreMerges.includes(c.trade)) {
+        tradeList = centreMerges;
+      } else {
+        tradeList = [c.trade];
+      }
       const groupKey = `${c.centre}|${[...new Set(tradeList)].sort().join('|')}`;
 
       if (!groups[groupKey]) {
-        const isMerged = tradeList.length > 1 || tradeList.some(t => t !== c.trade);
+        const isMerged = tradeList.length > 1;
         groups[groupKey] = new TradeGroup(c.centre, tradeList, isMerged);
       }
 

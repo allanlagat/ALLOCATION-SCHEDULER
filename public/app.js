@@ -26,6 +26,19 @@ const optionsTableBody = document.querySelector('#optionsTable tbody');
 const optionsSection = document.getElementById('optionsSection');
 const downloadAllocBtn = document.getElementById('downloadAllocBtn');
 const downloadRegBtn = document.getElementById('downloadRegBtn');
+const optionsSection = document.getElementById('optionsSection');
+const optionsTableBody = document.querySelector('#optionsTable tbody');
+
+window.addEventListener('error', function(event) {
+  console.error('Global error caught:', event.error);
+  console.error('Error message:', event.message);
+  console.error('Error filename:', event.filename);
+  console.error('Error lineno:', event.lineno);
+});
+
+window.addEventListener('unhandledrejection', function(event) {
+  console.error('Unhandled promise rejection:', event.reason);
+});
 
 function updateSelectionSummary() {
   const centre = centreSelect.value;

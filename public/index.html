@@ -39,31 +39,51 @@
       </section>
 
       <section class="card">
-        <h2>3. Trade Merge</h2>
+        <h2>3. Centre & Trades</h2>
         <div class="form-group">
           <label for="centreSelect">Select Centre</label>
           <select id="centreSelect">
             <option value="">-- Select Centre --</option>
           </select>
         </div>
-        <div class="form-group">
-          <label for="tradeSelect">Select Trades to Merge</label>
-          <select id="tradeSelect" multiple size="5">
-            <option value="">-- Select Trades --</option>
-          </select>
-        </div>
-        <div class="button-group">
-          <button id="mergeBtn" class="btn btn-primary">Merge Trades</button>
-          <button id="resetMergeBtn" class="btn btn-secondary">Reset Merges</button>
-        </div>
-        <div id="mergeStatus" class="status"></div>
       </section>
 
       <section class="card">
         <h2>4. Run Allocation</h2>
         <div id="selectionSummary" class="selection-summary"></div>
+        <div class="form-group">
+          <label for="tradeSelect">Select Trades to Allocate (leave blank for all trades)</label>
+          <select id="tradeSelect" multiple size="5">
+            <option value="">-- Select Trades --</option>
+          </select>
+        </div>
+        <div class="button-group">
+          <button id="mergeBtn" class="btn btn-primary">Merge Selected Trades</button>
+          <button id="resetMergeBtn" class="btn btn-secondary">Reset Merges</button>
+        </div>
+        <div id="mergeStatus" class="status"></div>
         <button id="allocateBtn" class="btn btn-primary btn-large">Run Allocation</button>
         <p id="recommendations" class="recommendations"></p>
+      </section>
+
+      <section class="card options-section" id="optionsSection" style="display:none;">
+        <h2>Allocation Options</h2>
+        <p class="hint">Select an option for each trade. <strong>Preferred</strong> option fits within the available period.</p>
+        <div class="table-container">
+          <table id="optionsTable">
+            <thead>
+              <tr>
+                <th>Centre</th>
+                <th>Trade</th>
+                <th>Candidates</th>
+                <th>Total Days</th>
+                <th>Options (Assessors / Days)</th>
+                <th>Fits Period</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
       </section>
 
       <section class="card results-section" id="resultsSection" style="display:none;">

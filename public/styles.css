@@ -215,6 +215,38 @@ input[type="file"] {
   font-weight: 600;
 }
 
+.options-section {
+  animation: fadeIn 0.5s;
+}
+
+.option-btn {
+  display: inline-block;
+  padding: 8px 12px;
+  margin: 4px;
+  border: 2px solid #e2e8f0;
+  border-radius: 6px;
+  background: white;
+  cursor: pointer;
+  text-align: center;
+  min-width: 80px;
+  transition: all 0.2s;
+}
+
+.option-btn:hover {
+  border-color: #667eea;
+  background: #f7fafc;
+}
+
+.option-btn.preferred {
+  border-color: #48bb78;
+  background: #f0fff4;
+}
+
+.option-btn.preferred:hover {
+  border-color: #38a169;
+  background: #c6f6d5;
+}
+
 .results-section {
   animation: fadeIn 0.5s;
 }

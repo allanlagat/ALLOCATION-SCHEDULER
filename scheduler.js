@@ -63,6 +63,22 @@ class TradeGroup {
     if (numAssessors === 0) return Infinity;
     return Math.max(1, Math.ceil(totalDays / (numAssessors * 6)));
   }
+
+  getOptions(maxAvailableDays) {
+    const options = [];
+    const minAssessors = this.minAssessors();
+    
+    for (let assessors = minAssessors; assessors <= maxAvailableDays; assessors++) {
+      const days = this.minDaysForAssessors(assessors);
+      options.push({
+        assessors: assessors,
+        days: days,
+        fits: days <= maxAvailableDays
+      });
+    }
+    
+    return options;
+  }
 }
 
 class ExamScheduler {
@@ -86,10 +102,14 @@ class ExamScheduler {
     return days;
   }
 
-  getGroups(mergedTrades = {}) {
+  getGroups(mergedTrades = {}, selectedTrades = null) {
     const groups = {};
 
     for (const c of this.candidates) {
+      if (selectedTrades && selectedTrades.length > 0 && !selectedTrades.includes(c.trade)) {
+        continue;
+      }
+
       const centreMerges = mergedTrades[c.centre];
       let tradeList;
       if (centreMerges && centreMerges.includes(c.trade)) {
@@ -111,7 +131,7 @@ class ExamScheduler {
   }
 
   allocate(groups) {
-    const results = [];
+    const groupOptions = [];
     const recommendations = [];
 
     for (const group of groups) {
@@ -119,56 +139,53 @@ class ExamScheduler {
       const minAssessors = group.minAssessors();
       const minDays = group.minDaysForAssessors(minAssessors);
 
-      let numAssessors = minAssessors;
-      let numDays = minDays;
-      let feasible = true;
-
-      if (minDays > this.availableDays.length) {
-        feasible = false;
-        for (let a = minAssessors; a <= this.availableDays.length; a++) {
-          const daysNeeded = group.minDaysForAssessors(a);
-          if (daysNeeded <= this.availableDays.length) {
-            numAssessors = a;
-            numDays = daysNeeded;
-            feasible = true;
-            break;
-          }
-        }
-      }
-
-      if (!feasible) {
-        recommendations.push(
-          `Centre: ${group.centre} | Trades: ${group.trades.join(', ')} | Cannot fit within available period even with ${this.availableDays.length} assessors.`
-        );
-        continue;
-      }
+      const options = group.getOptions(this.availableDays.length);
+      const preferred = options.find(o => o.fits) || options[0];
 
       const startDate = this.availableDays[0];
-      const endDate = new Date(this.availableDays[numDays - 1]);
-
+      const endDate = new Date(this.availableDays[preferred.days - 1]);
       const displayTrade = group.merged ? group.trades.join(' + ') : group.trades[0];
 
       const sortedGrades = Object.keys(group.candidatesByGrade()).sort(
         (a, b) => GRADE_PRIORITY[a] - GRADE_PRIORITY[b]
       );
 
+      const gradeResults = [];
       for (const grade of sortedGrades) {
-        results.push({
+        gradeResults.push({
           centre: group.centre,
           tradeOrMerged: displayTrade,
           grade: grade,
           numCandidates: group.candidatesByGrade()[grade],
-          numAssessors: numAssessors,
+          numAssessors: preferred.assessors,
           startDate: startDate.toISOString().split('T')[0],
           endDate: endDate.toISOString().split('T')[0],
-          numDays: numDays,
+          numDays: preferred.days,
           merged: group.merged,
           originalTrades: group.trades,
         });
       }
+
+      groupOptions.push({
+        centre: group.centre,
+        tradeOrMerged: displayTrade,
+        merged: group.merged,
+        originalTrades: group.trades,
+        totalCandidates: group.totalCandidates(),
+        totalCandidateDays: totalDaysNeeded,
+        options: options,
+        preferred: preferred,
+        gradeResults: gradeResults
+      });
+
+      if (!preferred.fits) {
+        recommendations.push(
+          `Centre: ${group.centre} | Trade: ${displayTrade} | Requires ${preferred.days} days but only ${this.availableDays.length} days available. Consider adding assessors.`
+        );
+      }
     }
 
-    return { results, recommendations };
+    return { groupOptions, recommendations };
   }
 }
 

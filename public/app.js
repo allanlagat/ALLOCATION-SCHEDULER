@@ -5,6 +5,7 @@ let centres = [];
 let tradesByCentre = {};
 let mergedTrades = {};
 let allocationResults = [];
+let selectedOptionIndex = null;
 
 const fileInput = document.getElementById('fileInput');
 const fileName = document.getElementById('fileName');
@@ -21,8 +22,12 @@ const recommendationsDiv = document.getElementById('recommendations');
 const selectionSummary = document.getElementById('selectionSummary');
 const resultsSection = document.getElementById('resultsSection');
 const resultsTableBody = document.querySelector('#resultsTable tbody');
+const optionsTableBody = document.querySelector('#optionsTable tbody');
+const optionsSection = document.getElementById('optionsSection');
 const downloadAllocBtn = document.getElementById('downloadAllocBtn');
 const downloadRegBtn = document.getElementById('downloadRegBtn');
+const optionsSection = document.getElementById('optionsSection');
+const optionsTableBody = document.querySelector('#optionsTable tbody');
 
 function updateSelectionSummary() {
   const centre = centreSelect.value;
@@ -33,12 +38,13 @@ function updateSelectionSummary() {
   if (centre) {
     html += `<strong>Selected Centre:</strong> ${centre}`;
     if (selectedTrades.length > 0) {
-      html += ` | <strong>Trades visible:</strong> ${selectedTrades.length}`;
+      html += ` | <strong>Selected Trades:</strong> ${selectedTrades.join(', ')}`;
+    } else {
+      html += ` | <strong>Selected Trades:</strong> All trades`;
     }
     if (hasMerges) {
       html += ` | <strong>Merged groups:</strong> ${Object.keys(mergedTrades).map(c => `${c}: ${mergedTrades[c].join(' + ')}`).join(', ')}`;
     }
-    html += ` | <strong>Note:</strong> Allocation will run for all trades in the selected centre(s). Use merge to combine trades.`;
   } else {
     html = `<strong>No centre selected.</strong> Please select a centre to see available trades.`;
   }
@@ -119,19 +125,6 @@ async function loadCentres() {
   }
 }
 
-centreSelect.addEventListener('change', () => {
-  const centre = centreSelect.value;
-  tradeSelect.innerHTML = '<option value="">-- Select Trades --</option>';
-  if (centre && tradesByCentre[centre]) {
-    tradesByCentre[centre].forEach(trade => {
-      const option = document.createElement('option');
-      option.value = trade;
-      option.textContent = trade;
-      tradeSelect.appendChild(option);
-    });
-  }
-});
-
 mergeBtn.addEventListener('click', () => {
   const centre = centreSelect.value;
   const selectedTrades = Array.from(tradeSelect.selectedOptions).map(o => o.value);
@@ -168,6 +161,7 @@ allocateBtn.addEventListener('click', async () => {
   const examStart = startDateInput.value;
   const examEnd = endDateInput.value;
   const centre = centreSelect.value;
+  const selectedTrades = Array.from(tradeSelect.selectedOptions).map(o => o.value);
 
   if (!centre) {
     recommendationsDiv.innerHTML = '<p class="error">Please select a centre before running allocation.</p>';
@@ -193,22 +187,35 @@ allocateBtn.addEventListener('click', async () => {
         examStart,
         examEnd,
         mergedTrades,
+        selectedTrades: selectedTrades.length > 0 ? selectedTrades : null
       }),
     });
 
     const data = await response.json();
 
     if (response.ok) {
-      allocationResults = data.results;
-      displayResults(data.results, data.recommendations);
-      if (data.results.length === 0) {
+      if (data.groupOptions && data.groupOptions.length > 0) {
+        displayOptions(data.groupOptions);
+        if (data.recommendations && data.recommendations.length > 0) {
+          recommendationsDiv.innerHTML = data.recommendations.map(r => `<p>${r}</p>`).join('');
+          recommendationsDiv.style.display = 'block';
+        } else {
+          recommendationsDiv.innerHTML = '';
+          recommendationsDiv.style.display = 'none';
+        }
+      } else {
         recommendationsDiv.innerHTML = '<p class="error">Allocation completed but returned no results. Check your data and dates.</p>';
+        recommendationsDiv.style.display = 'block';
+        resultsSection.style.display = 'none';
+        optionsSection.style.display = 'none';
       }
     } else {
       recommendationsDiv.innerHTML = `<p class="error">Allocation failed: ${data.error}</p>`;
+      recommendationsDiv.style.display = 'block';
     }
   } catch (error) {
     recommendationsDiv.innerHTML = `<p class="error">Allocation failed: ${error.message}</p>`;
+    recommendationsDiv.style.display = 'block';
   } finally {
     allocateBtn.disabled = false;
   }
@@ -238,6 +245,60 @@ function displayResults(results, recommendations) {
     `;
     resultsTableBody.appendChild(row);
   }
+}
+
+function displayOptions(groupOptions) {
+  optionsSection.style.display = 'block';
+  optionsTableBody.innerHTML = '';
+
+  window.currentGroupOptions = groupOptions;
+
+  for (let i = 0; i < groupOptions.length; i++) {
+    const group = groupOptions[i];
+    const preferred = group.preferred;
+    
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>${group.centre}</td>
+      <td>${group.tradeOrMerged}</td>
+      <td>${group.totalCandidates}</td>
+      <td>${group.totalCandidateDays}</td>
+      <td>${group.options.length > 0 ? group.options.map((opt, idx) => 
+        `<button class="option-btn ${opt === preferred ? 'preferred' : ''}" 
+                onclick="selectOption(${i}, ${idx})"
+                title="${opt === preferred ? 'Recommended: fits within available period' : (opt.fits ? 'Fits within period' : 'Exceeds available period')}">
+          Option ${idx + 1}<br>
+          <strong>${opt.assessors}</strong> assessor(s)<br>
+          <strong>${opt.days}</strong> day(s)<br>
+          ${opt.fits ? 'Fits' : 'Exceeds'}
+        </button>`
+      ).join(' ') : 'N/A'}</td>
+      <td>${preferred.fits ? 'Yes' : 'No'}</td>
+    `;
+    optionsTableBody.appendChild(row);
+  }
+}
+
+function selectOption(groupIndex, optionIndex) {
+  const group = window.currentGroupOptions[groupIndex];
+  const option = group.options[optionIndex];
+  
+  const startDate = new Date();
+  const endDate = new Date(startDate);
+  endDate.setDate(endDate.getDate() + option.days - 1);
+  
+  const results = group.gradeResults.map(r => ({
+    ...r,
+    numAssessors: option.assessors,
+    numDays: option.days,
+    startDate: startDate.toISOString().split('T')[0],
+    endDate: endDate.toISOString().split('T')[0]
+  }));
+
+  allocationResults = results;
+  displayResults(results, []);
+  optionsSection.style.display = 'none';
+  resultsSection.style.display = 'block';
 }
 
 downloadAllocBtn.addEventListener('click', () => {

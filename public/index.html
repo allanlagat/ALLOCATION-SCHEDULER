@@ -104,8 +104,10 @@
       </section>
 
       <section class="card assignments-section" id="assignmentsSection" style="display:none;">
-        <h2>Assessor Assignments</h2>
-        <p class="hint">Candidates assigned to each assessor based on the selected option.</p>
+        <h2>Assessor Assignments & Daily Schedule</h2>
+        <p class="hint">Candidates assigned to each assessor with day-by-day schedule.</p>
+        
+        <h3>Assessor Summary</h3>
         <div class="table-container">
           <table id="assignmentsTable">
             <thead>
@@ -122,8 +124,25 @@
             <tbody></tbody>
           </table>
         </div>
+
+        <h3 style="margin-top: 20px;">Daily Schedule</h3>
+        <div class="table-container">
+          <table id="scheduleTable">
+            <thead>
+              <tr>
+                <th>Day</th>
+                <th>Assessor</th>
+                <th>Candidates Count</th>
+                <th>Candidate Numbers</th>
+                <th>Grades</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        
         <div class="button-group">
-          <button id="downloadAssignmentsBtn" class="btn btn-success">Download Assessor Assignments</button>
+          <button id="downloadAssignmentsBtn" class="btn btn-success">Download Assignments & Schedule</button>
         </div>
       </section>
     </main>

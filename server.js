@@ -33,8 +33,9 @@ app.use(express.static('public', {
   }
 }));
 
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Access from other devices on the network: http://192.168.2.101:${PORT}`);
 });
 
 server.timeout = 300000;
@@ -165,10 +166,14 @@ app.post('/allocate', (req, res) => {
 
     const scheduler = new ExamScheduler(uploadedCandidates, parseInt(examDays));
     const groups = scheduler.getGroups(mergedTrades || {}, selectedTrades || null, selectedCentre || null);
+    
+    console.log('Allocating', groups.length, 'groups');
+    
     const { groupOptions, recommendations } = scheduler.allocate(groups);
 
     res.json({ groupOptions, recommendations });
   } catch (error) {
+    console.error('Allocation error:', error);
     res.status(500).json({ error: error.message });
   }
 });

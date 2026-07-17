@@ -402,6 +402,8 @@ function selectOption(groupIndex, optionIndex) {
 function displayAssignments(group, option) {
   assignmentsSection.style.display = 'block';
   assignmentsTableBody.innerHTML = '';
+  const scheduleTableBody = document.querySelector('#scheduleTable tbody');
+  scheduleTableBody.innerHTML = '';
 
   if (!group.assignments || group.assignments.length === 0) {
     assignmentsTableBody.innerHTML = '<tr><td colspan="7">No assignments available.</td></tr>';
@@ -420,6 +422,35 @@ function displayAssignments(group, option) {
       <td>${assignment.candidates.map(c => c.grade).join(', ')}</td>
     `;
     assignmentsTableBody.appendChild(row);
+  }
+
+  if (group.schedule && group.schedule.length > 0) {
+    for (const daySchedule of group.schedule) {
+      for (const assessorDay of daySchedule.assessors) {
+        if (assessorDay.candidates.length > 0) {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>Day ${daySchedule.day}</td>
+            <td>Assessor ${assessorDay.assessorNumber}</td>
+            <td>${assessorDay.count}</td>
+            <td>${assessorDay.candidates.map(c => c.candidateNumber).join(', ')}</td>
+            <td>${assessorDay.candidates.map(c => c.grade).join(', ')}</td>
+          `;
+          scheduleTableBody.appendChild(row);
+        }
+      }
+    }
+  }
+
+  if (group.unscheduledCandidates && group.unscheduledCandidates.length > 0) {
+    const unscheduledRow = document.createElement('tr');
+    unscheduledRow.innerHTML = `
+      <td colspan="7" class="error">
+        <strong>Unscheduled Candidates (${group.unscheduledCandidates.length}):</strong><br>
+        ${group.unscheduledCandidates.map(u => `${u.candidateNumber} (${u.grade}): ${u.reason}`).join('<br>')}
+      </td>
+    `;
+    scheduleTableBody.appendChild(unscheduledRow);
   }
 }
 

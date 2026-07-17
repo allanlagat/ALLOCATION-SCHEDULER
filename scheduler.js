@@ -62,9 +62,8 @@ class TradeGroup {
 
   daysForAssessors(numAssessors, examDays) {
     const totalDays = this.totalCandidateDays();
-    const capacity = numAssessors * examDays * 6;
-    if (capacity <= 0) return Infinity;
-    return Math.max(1, Math.ceil(totalDays / capacity));
+    if (numAssessors === 0) return Infinity;
+    return Math.max(1, Math.ceil(totalDays / (numAssessors * 6)));
   }
 
   getOptions(examDays) {
@@ -116,6 +115,151 @@ class TradeGroup {
     }
 
     return assignments;
+  }
+
+  generateDailySchedule(numAssessors, examDays) {
+    const assignments = this.assignCandidatesToAssessors(numAssessors, examDays);
+    const schedule = [];
+    
+    for (let day = 1; day <= examDays; day++) {
+      const daySchedule = {
+        day: day,
+        assessors: []
+      };
+      
+      for (const assignment of assignments) {
+        const assessorDay = {
+          assessorNumber: assignment.assessorNumber,
+          candidates: []
+        };
+        
+        for (const candidate of assignment.candidates) {
+          const candidateDays = GRADE_DAYS[candidate.grade] || 0;
+          const candidateStartDay = candidate.scheduledStartDay || 1;
+          
+          if (day >= candidateStartDay && day < candidateStartDay + candidateDays) {
+            assessorDay.candidates.push(candidate);
+          }
+        }
+        
+        daySchedule.assessors.push(assessorDay);
+      }
+      
+      schedule.push(daySchedule);
+    }
+    
+    return schedule;
+  }
+
+  scheduleCandidates(numAssessors, examDays) {
+    const sortedCandidates = [...this.candidates].sort((a, b) => {
+      const priorityDiff = GRADE_PRIORITY[a.grade] - GRADE_PRIORITY[b.grade];
+      if (priorityDiff !== 0) return priorityDiff;
+      return a.candidateNumber.localeCompare(b.candidateNumber);
+    });
+
+    const assignments = [];
+    for (let i = 0; i < numAssessors; i++) {
+      assignments.push({
+        assessorNumber: i + 1,
+        candidates: [],
+        totalCandidateDays: 0,
+        dailyLoad: new Array(examDays).fill(0)
+      });
+    }
+
+    const candidateAssignments = new Map();
+    let unscheduledCandidates = [];
+    
+    for (const candidate of sortedCandidates) {
+      const candidateDays = GRADE_DAYS[candidate.grade] || 0;
+      
+      if (candidateDays > examDays) {
+        unscheduledCandidates.push(candidate);
+        continue;
+      }
+      
+      let bestAssessor = 0;
+      let minMaxLoad = Infinity;
+      let bestStartDay = -1;
+
+      for (let day = 0; day <= examDays - candidateDays; day++) {
+        for (let i = 0; i < assignments.length; i++) {
+          let fits = true;
+          let maxLoad = 0;
+          
+          for (let d = day; d < day + candidateDays; d++) {
+            if (assignments[i].dailyLoad[d] + 1 > 6) {
+              fits = false;
+              break;
+            }
+            maxLoad = Math.max(maxLoad, assignments[i].dailyLoad[d] + 1);
+          }
+          
+          if (fits && maxLoad < minMaxLoad) {
+            minMaxLoad = maxLoad;
+            bestAssessor = i;
+            bestStartDay = day;
+          }
+        }
+      }
+
+      if (bestStartDay === -1) {
+        unscheduledCandidates.push(candidate);
+        continue;
+      }
+
+      assignments[bestAssessor].candidates.push(candidate);
+      assignments[bestAssessor].totalCandidateDays += candidateDays;
+      
+      for (let d = bestStartDay; d < bestStartDay + candidateDays; d++) {
+        assignments[bestAssessor].dailyLoad[d] += 1;
+      }
+      
+      candidateAssignments.set(candidate.candidateNumber, {
+        assessorNumber: assignments[bestAssessor].assessorNumber,
+        startDay: bestStartDay + 1,
+        endDay: bestStartDay + candidateDays
+      });
+    }
+
+    const schedule = [];
+    for (let day = 0; day < examDays; day++) {
+      const daySchedule = {
+        day: day + 1,
+        assessors: []
+      };
+      
+      for (const assignment of assignments) {
+        const dayCandidates = assignment.candidates.filter(c => {
+          const info = candidateAssignments.get(c.candidateNumber);
+          return info && day + 1 >= info.startDay && day + 1 <= info.endDay;
+        });
+        
+        daySchedule.assessors.push({
+          assessorNumber: assignment.assessorNumber,
+          candidates: dayCandidates,
+          count: dayCandidates.length
+        });
+      }
+      
+      schedule.push(daySchedule);
+    }
+
+    const candidateSchedule = Array.from(candidateAssignments.entries()).map(([candidateNumber, info]) => {
+      const candidate = this.candidates.find(c => c.candidateNumber === candidateNumber);
+      return {
+        candidateNumber: candidate.candidateNumber,
+        candidateName: candidate.candidateName,
+        grade: candidate.grade,
+        department: candidate.department,
+        assessorNumber: info.assessorNumber,
+        startDay: info.startDay,
+        endDay: info.endDay
+      };
+    });
+
+    return { assignments, schedule, candidateSchedule, unscheduledCandidates };
   }
 }
 
@@ -188,7 +332,24 @@ class ExamScheduler {
         });
       }
 
-      const assignments = group.assignCandidatesToAssessors(preferred.assessors, this.examDays);
+      const { assignments, schedule, candidateSchedule, unscheduledCandidates } = group.scheduleCandidates(preferred.assessors, this.examDays);
+
+      const allCandidateSchedules = group.candidates.map(c => {
+        const scheduled = candidateSchedule.find(cs => cs.candidateNumber === c.candidateNumber);
+        if (scheduled) return scheduled;
+        
+        const unscheduled = unscheduledCandidates.find(uc => uc.candidateNumber === c.candidateNumber);
+        return {
+          candidateNumber: c.candidateNumber,
+          candidateName: c.candidateName,
+          grade: c.grade,
+          department: c.department,
+          assessorNumber: 0,
+          startDay: 0,
+          endDay: 0,
+          error: unscheduled ? `Requires ${GRADE_DAYS[c.grade] || 0} days but only ${this.examDays} exam days available` : 'Not scheduled'
+        };
+      });
 
       groupOptions.push({
         centre: group.centre,
@@ -200,7 +361,16 @@ class ExamScheduler {
         options: options,
         preferred: preferred,
         gradeResults: gradeResults,
-        assignments: assignments
+        assignments: assignments,
+        schedule: schedule,
+        candidateSchedule: allCandidateSchedules,
+        unscheduledCandidates: unscheduledCandidates.map(c => ({
+          candidateNumber: c.candidateNumber,
+          candidateName: c.candidateName,
+          grade: c.grade,
+          department: c.department,
+          reason: `Requires ${GRADE_DAYS[c.grade] || 0} days but only ${this.examDays} exam days available`
+        }))
       });
 
       if (!preferred.fits) {
@@ -306,10 +476,11 @@ function generateAssignmentsExcel(groupOptions) {
     if (!group.assignments || group.assignments.length === 0) continue;
 
     const sheetData = [];
-    sheetData.push(['Centre', 'Trade', 'Assessor', 'Candidate Number', 'Candidate Name', 'Grade', 'Department']);
+    sheetData.push(['Centre', 'Trade', 'Assessor', 'Candidate Number', 'Candidate Name', 'Grade', 'Department', 'Start Day', 'End Day']);
 
     for (const assignment of group.assignments) {
       for (const candidate of assignment.candidates) {
+        const schedule = group.candidateSchedule.find(cs => cs.candidateNumber === candidate.candidateNumber);
         sheetData.push([
           group.centre,
           group.tradeOrMerged,
@@ -317,7 +488,9 @@ function generateAssignmentsExcel(groupOptions) {
           candidate.candidateNumber,
           candidate.candidateName,
           candidate.grade,
-          candidate.department
+          candidate.department,
+          schedule ? schedule.startDay : '',
+          schedule ? schedule.endDay : ''
         ]);
       }
     }
@@ -325,6 +498,28 @@ function generateAssignmentsExcel(groupOptions) {
     const ws = XLSX.utils.aoa_to_sheet(sheetData);
     const sheetName = `${group.centre}_${group.tradeOrMerged}_Assignments`.substring(0, 31);
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
+
+    if (group.schedule && group.schedule.length > 0) {
+      const scheduleData = [['Day', 'Assessor', 'Candidates Count', 'Candidate Numbers', 'Grades']];
+      
+      for (const daySchedule of group.schedule) {
+        for (const assessorDay of daySchedule.assessors) {
+          if (assessorDay.candidates.length > 0) {
+            scheduleData.push([
+              daySchedule.day,
+              assessorDay.assessorNumber,
+              assessorDay.count,
+              assessorDay.candidates.map(c => c.candidateNumber).join(', '),
+              assessorDay.candidates.map(c => c.grade).join(', ')
+            ]);
+          }
+        }
+      }
+
+      const scheduleWs = XLSX.utils.aoa_to_sheet(scheduleData);
+      const scheduleSheetName = `${group.centre}_${group.tradeOrMerged}_Daily_Schedule`.substring(0, 31);
+      XLSX.utils.book_append_sheet(wb, scheduleWs, scheduleSheetName);
+    }
   }
 
   return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
